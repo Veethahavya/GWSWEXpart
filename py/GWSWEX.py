@@ -7,16 +7,9 @@ import matplotlib.pyplot as plt
 from scipy.io import FortranFile
 from datetime import datetime, timedelta
 import netCDF4 as nc
-import warnings
 import logging
 import shutil
 
-warnings.filterwarnings("ignore", category=np.VisibleDeprecationWarning)
-pd.options.mode.chained_assignment = None
-
-if os.path.exists("../output/GWSWEX.log"):
-	with open("../output/GWSWEX.log", "w"):
-		pass
 logging.basicConfig(filename="../output/GWSWEX.log", format="%(asctime)s; %(levelname)s: %(message)s", level=logging.DEBUG)
 
 #%%
@@ -31,7 +24,7 @@ class bundleIT(object):
 
 
 #%%
-class timing():
+class Timing():
 	def __init__(self, start, end, dt_exchange, ts_exchange):
 		self.str = {}
 		self.unix = {}
@@ -99,17 +92,6 @@ class timing():
 			logging.info("TIMING: Updated times to suit nTS change")
 		else:
 			logging.info("*TIMING: Updated. Start: {0}   End: {1}".format(self.str["local_start"], self.str["local_end"]))
-
-	def getRuntime(self, n):
-		if n > len(self.run["Fort.Run"]):
-			raise ValueError("Run number is out of bounds")
-		runtime = []
-		for v in self.run.values():
-			if v:
-				runtime.append(v[0])
-		runtime = sum(runtime)
-		self.runtimes.append(runtime)
-		logging.info("*RUNTIME{}: {}".format(self.nTS["run_num"], self.runtimes[int(self.nTS["run_num"])]))
 
 
 #%%
@@ -405,14 +387,10 @@ class Fort:
 		plt.figure(dpi=dDPI)
 		plt.xlabel("Time Steps")
 		plt.ylabel("Water Levels in mm")
-		if fromMF6:
-			gws = fromMF6.Res.h[0,:,elem]*1000
-		else:
-			gws = self.Res.gws[elem,1:]
-		plt.ylim([gws.min()-50, self.Res.sws[elem,:].max()+50+self.Ini.gok[elem]])
-		plt.stackplot(range(0,self.Ini.ts-1), gws, self.Res.sm[elem,1:],\
-		self. Res.epv[elem,1:]-self.Res.sm[elem,1:], (np.full(self.Ini.ts-1,self.Ini.gok[elem])-gws)*(1-self.Ini.n),\
-		self.Res.sws[elem,1:], labels=["Groundwater","Soil Moisture", "Field Capacity", "Soil Volume", "Surface Water"], colors=pal)
+		plt.ylim([self.Res.gws[elem,:].min()-50, self.Res.sws[elem,:].max()+50+self.Ini.gok[elem]])
+		plt.stackplot(range(0,self.Ini.ts), self.Res.gws[elem,:], self.Res.sm[elem,:],\
+		self. Res.epv[elem,:]-self.Res.sm[elem,:], (np.full(self.Ini.ts,self.Ini.gok[elem])-self.Res.gws[elem,:])*(1-self.Ini.n),\
+		self.Res.sws[elem,:], labels=["Groundwater","Soil Moisture", "Field Capacity", "Soil Volume", "Surface Water"], colors=pal)
 		plt.plot(range(0,self.Ini.ts), np.full(self.Ini.ts,self.Ini.gok[elem]), "k", linewidth=0.5, label="Ground Level")
 		plt.legend(loc="best", fontsize="small")
 		if savefig:
@@ -437,7 +415,7 @@ class Fort:
 
 
 #%%
-class resNC:
+class ResNC:
 	def __init__(self, times, Fort, op_path="../output/", op_name="GWSWEX"):
 		self.path = op_path
 		if not os.path.exists(self.path):

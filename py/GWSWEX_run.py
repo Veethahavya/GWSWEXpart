@@ -2,29 +2,26 @@ import GWSWEX
 import numpy as np
 from tqdm import tqdm
 
-#%%
-times = GWSWEX.timing("2020-05-01 00:00:00", "2020-06-01 00:00:00", 3600, 15)
-
+#%% Initialization of the class/objects
+times = GWSWEX.Timing("2020-05-01 00:00:00", "2020-06-01 00:00:00", 3600, 15)
 Fort = GWSWEX.Fort("../fortran/", times)
-
 PET = GWSWEX.PET("../data/", times, Fort)
+RES = GWSWEX.ResNC(times, Fort)
 
-RES = GWSWEX.resNC(times, Fort)
-
-#%%
+#%% Initialization of the GWSWEX model
 PET.prep()
 PET.get(throttle=True)
 
-Fort.Ini.elems = 2*2
+Fort.Ini.elems = 2*2 # number of elements; here a simple example of a 2*2 grid i.e. 4 elements
 
-Fort.Ini.k = np.full(Fort.Ini.elems, 1e-3)
-Fort.Ini.n = 0.4
-Fort.Ini.m = 0.1
-Fort.Ini.beta = 0.95
-Fort.Ini.alpha = 0.90
-Fort.Ini.sw_th = 0.1
+Fort.Ini.k = np.full(Fort.Ini.elems, 1e-3) # hydraulic conductivity
+Fort.Ini.n = 0.4 # porosity
+Fort.Ini.m = 0.1 # pwp
+Fort.Ini.beta = 0.95 # model parameter
+Fort.Ini.alpha = 0.90 # model parameter
+Fort.Ini.sw_th = 0.1 # model parameter
 
-Fort.Ini.gok = np.array([10, 11, 10.5, 11.5])
+Fort.Ini.gok = np.array([10, 11, 10.5, 11.5]) # the ground-surface elevation
 Fort.Ini.chd_cells = np.array([0, 1, 0, 0])
 Fort.Ini.gws = Fort.Ini.gok - 3
 Fort.Ini.epv = (Fort.Ini.gok - Fort.Ini.gws)*Fort.Ini.n
