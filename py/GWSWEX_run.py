@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 
 #%% Initialization of the class/objects
-times = GWSWEX.Timing("2020-05-01 00:00:00", "2020-06-01 00:00:00", 3600, 15)
+times = GWSWEX.Timing("2020-05-01 00:00:00", "2020-06-01 00:00:00", 3600, 15) # Hint: times are stored as attributes. try viewing times.str
 Fort = GWSWEX.Fort("../fortran/", times)
 PET = GWSWEX.PET("../data/", times, Fort)
 RES = GWSWEX.ResNC(times, Fort)
@@ -22,16 +22,20 @@ Fort.Ini.alpha = 0.90 # model parameter
 Fort.Ini.sw_th = 0.1 # model parameter
 
 Fort.Ini.gok = np.array([10, 11, 10.5, 11.5]) # the ground-surface elevation
-Fort.Ini.chd_cells = np.array([0, 1, 0, 0])
-Fort.Ini.gws = Fort.Ini.gok - 3
-Fort.Ini.epv = (Fort.Ini.gok - Fort.Ini.gws)*Fort.Ini.n
-Fort.Ini.sm = Fort.Ini.epv*0.75
-Fort.Ini.sws = np.array([0.2, 0.3, 0, 0])
+Fort.Ini.chd_cells = np.array([0, 1, 0, 0]) # array indicating wheather the element is imposed by a constant-head boundary condition
+Fort.Ini.gws = Fort.Ini.gok - 3 # initial groundwater elevation (here 3 under the ground surface)
+Fort.Ini.epv = (Fort.Ini.gok - Fort.Ini.gws)*Fort.Ini.n  # initial effective pore volume
+Fort.Ini.sm = Fort.Ini.epv*0.75 # initial soil moisture
+Fort.Ini.sws = np.array([0.2, 0.3, 0, 0]) # initial surface water content
 
 RES.build()
 
+# Hint: Use the keys() function to see all the attributes
+
 #%%
-Fort.build(restart=False, res=RES, run=True)
+Fort.build()
+Fort.Run() # Hint: the success state is stored in Fort.success
+Fort.load() # Hint: Results are stored in Fort.Res
 # Fort.plot(0)
 
 #%%
@@ -41,6 +45,6 @@ RES.update(save=True)
 for ts in tqdm(range(times.nTS["max"])):
 	times.update()
 	PET.get(throttle=True)
-	Fort.update(run=True)
+	Fort.update(run=True) # updates, runs, and loads
 	RES.update(save=True)
 RES.close()
