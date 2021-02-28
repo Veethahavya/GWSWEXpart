@@ -10,22 +10,53 @@ import netCDF4 as nc
 import logging
 import shutil
 
+if not os.path.exists("../output"):
+	os.mkdir("../output")
+open("../output/GWSWEX.log", "w")
 logging.basicConfig(filename="../output/GWSWEX.log", format="%(asctime)s; %(levelname)s: %(message)s", level=logging.DEBUG)
 
 #%%
 class bundleIT(object):
+	"""Class to bundle attributes into a single object"""
 	def __init__(self, **argd):
 		self.__dict__.update(argd)
 	def keys(self):
+		"""Lists the attributes of the created object"""
 		for property, value in vars(self).items():
 			print(property)
-	def __main__(self):
-		self.keys()
 
 
 #%%
 class Timing():
+	"""
+	Class for robust time control for coupling
+	...
+	Attributes
+	----------
+	str, unix, rel, stmp : dict
+		dictionaries to store the global and local simulation times in string, unix, relative, and datetime formats respectively
+	nTS : dict
+		dictionary of number of timesteps
+	ts : dict
+		dictionary of timesteps
+	run : dict
+		dictionary of individual function runtimes
+	runtimes : list
+		list of model runtimes
+	"""
 	def __init__(self, start, end, dt_exchange, ts_exchange):
+		"""
+		Parameters
+		----------
+		start : str
+			date and time in format YYYY-MM-DD hh:mm:ss: global start of the simulation period
+		end : str
+			date and time in format YYYY-MM-DD hh:mm:ss: global end of the simulation period
+		dt_exchange : int
+			time in seconds for each discrete local simulation period
+		ts_exchange : int
+			number of internal timesteps for each discrete local simulation period
+		"""
 		self.str = {}
 		self.unix = {}
 		self.rel = {}
@@ -73,6 +104,14 @@ class Timing():
 		self.ts["global"] = self.ts["local"]
 
 	def update(self, update_by=None, internal=False):
+		"""
+		Parameters
+		----------
+		update_by : int, optional
+			explicitly specify the update time in seconds
+		internal : bool
+			internal flag
+		"""
 		self.run["start"] = time.time()
 		if update_by is None:
 			dt_update = self.dt["exchange"]
@@ -96,7 +135,24 @@ class Timing():
 
 #%%
 class PET:
+	"""
+	Class to handle the precipitation and evapotranspiration data
+	"""
 	def __init__(self, data_path, times, Fort, p_name="p.dat", et_name="et.dat"):
+		"""
+		Parameters
+		----------
+		data_path : str
+			path to the data folder
+		times : obj
+			object of class timing
+		Fort : obj
+			object of class Fort
+		p_name : str, optional
+			Filename for precipitation data. The default is "p.dat".
+		et_name : str, optional
+			Filename for precipitation data. The default is "p.dat".
+		"""
 		self.data_path = data_path
 		self.p_path = os.path.join(data_path, p_name)
 		self.et_path = os.path.join(data_path, et_name)
@@ -109,6 +165,9 @@ class PET:
 		self.petDF_sel = None
 
 	def prep(self):
+		"""
+		Prepares the Precipitation and Evapotranspiration data for the global simulation period and stores the pandas dataframes as attributes
+		"""
 		strt_time = time.time()
 		pDF = pd.read_table(self.p_path)
 		pDF[pDF.columns[0]] = pd.to_datetime(pDF[pDF.columns[0]])
@@ -132,6 +191,14 @@ class PET:
 		logging.info("PET: Prepped")
 
 	def get(self, throttle=False, new_dt_exchange=None):
+		"""
+		Parameters
+		----------
+		throttle : bool, optional
+			option to modify nTS_exchange based on the precipitation intensity new_dt_exchange: option to manually change the dt_exchange for the current local simulation period. The default is False.
+		new_dt_exchange : int, optional
+			Explicitly input a new length of the local simulation time periodd. The default is None.
+		"""
 		strt_time = time.time()
 		start = datetime(self.times.stmp["local_start"].year, self.times.stmp["local_start"].month, self.times.stmp["local_start"].day,\
 		self.times.stmp["local_start"].hour)
@@ -202,7 +269,20 @@ class PET:
 
 #%%
 class Fort:
+	"""
+	This pivotal class helpes to initialize, run, and fetch the results from the GWSWEX model.
+	"""
 	def __init__(self, path, times, exe_path="GWSWEX.exe"):
+		"""
+		Parameters
+		----------
+		path : str
+			path to the GWSWEX model workspace folder with the executable
+		times : obj
+			object of the class timing
+		exe_path : str, optional
+			The filename od the executable of the GWSWEX model. The default is "GWSWEX.exe".
+		"""
 		self.path = path
 		self.exe_path = os.path.join(path, exe_path)
 		self.times = times
@@ -212,6 +292,16 @@ class Fort:
 		max_err_abs=None, max_err_perc=None)
 
 	def build(self, run=False, restart=False, res=None):
+		"""
+		Parameters
+		----------
+		run : bool, optional
+			option to run and load results
+		restart : bool, optional
+			option to ust the results from a previous model run as initial conditions
+		res : obj, optional; mandatory if restart is True
+			object of the ResNC class
+		"""
 		strt_time = time.time()
 		if restart:
 			fort_file = os.path.join(res.fort_path, "wasenmoos_fort_"+(self.times.stmp["local_start"]-timedelta(seconds=\
@@ -267,6 +357,12 @@ class Fort:
 			self.Run(load=True)
 
 	def update(self, run=False):
+		"""
+		Parameters
+		----------
+		run : bool, optional
+			option to run and load results
+		"""
 		strt_time = time.time()
 		self.Ini.sws = self.Res.sws[:,-1]
 		self.Ini.gws = self.Res.gws[:,-1]
@@ -307,6 +403,12 @@ class Fort:
 			self.Run(load=True)
 
 	def Run(self, load=False):
+		"""
+		Parameters
+		----------
+		load : bool, optional
+			option to load results
+		"""
 		strt_time = time.time()
 		logging.info("FORT: Run initialized")
 		owd = os.getcwd()
@@ -331,6 +433,9 @@ class Fort:
 			self.load()
 
 	def load(self):
+		"""
+		loads the model results
+		"""
 		strt_time = time.time()
 		shape = (self.Ini.elems, self.Ini.ts)
 		Qin_file = FortranFile(os.path.join(self.path,"Qin.op"), "r")
@@ -367,9 +472,28 @@ class Fort:
 		self.times.run["Fort.load"].append(time.time() - strt_time)
 		logging.info("FORT: Loaded results")
 
-	def plot(self, elem, plotPrec=False, plotDis=False, savefig=False, dDPI=90, pDPI=1600, alpha_scatter=0.7, scatter_size=3, fromMF6=None):
+	def plot(self, elem, plotPrec=False, plotDis=False, savefig=False, dDPI=90, pDPI=1600, alpha_scatter=0.7, scatter_size=3):
+		"""
+		Parameters
+		----------
+		elem : int
+			the element to plot
+		plotPrec : bool, optional
+			option to plot precipitation. The default is False.
+		plotDis : bool, optional
+			option to plot discharge in storage. The default is False.
+		savefig : bool, optional
+			option to save the plot. The default is False.
+		dDPI : int, optional
+			display dpi. The default is 90.
+		pDPI : int, optional
+			dpi to save the plot in. The default is 1600.
+		alpha_scatter : float, optional
+			alpha value for scatter. The default is 0.7.
+		scatter_size : float, optional
+			size of scatter. The default is 3.
+		"""
 		pal = ["#E74C3C", "#2ECC71", "#5EFCA1", "#E7AC3C", "#2980B9", "#1A3BFF", "#FF6600"] #[gw, sm, epv, sv, sw, p, et]
-
 		if plotDis:
 			plt.figure(dpi=dDPI)
 			plt.xlabel("Time Steps")
@@ -383,7 +507,6 @@ class Fort:
 			plt.legend(loc="best", fontsize="small")
 			if savefig:
 				plt.savefig("prec_dist.jpg", format="jpeg", dpi=pDPI)
-
 		plt.figure(dpi=dDPI)
 		plt.xlabel("Time Steps")
 		plt.ylabel("Water Levels in mm")
@@ -395,7 +518,6 @@ class Fort:
 		plt.legend(loc="best", fontsize="small")
 		if savefig:
 			plt.savefig("water_levels.jpg", format="jpeg", dpi=pDPI)
-
 		if plotPrec:
 			plt.figure(dpi=dDPI)
 			plt.xlabel("Time Steps")
@@ -416,7 +538,22 @@ class Fort:
 
 #%%
 class ResNC:
+	"""
+	A class to store and write the results from the GWSWEX model.
+	"""
 	def __init__(self, times, Fort, op_path="../output/", op_name="GWSWEX"):
+		"""
+		Parameters
+		----------
+		times : obj
+			object of the Timing class
+		Fort : obj
+			object of the Fort class
+		op_path : str, optional
+			path to the output workspace. The default is "../output/".
+		op_name : str, optional
+			name of the output file. The default is "GWSWEX".
+		"""
 		self.path = op_path
 		if not os.path.exists(self.path):
 			os.mkdir(op_path)
@@ -429,16 +566,17 @@ class ResNC:
 		self.save = None
 
 	def build(self):
+		"""
+		builds the netCDF file
+		"""
 		self.OP = nc.Dataset(os.path.join(self.path, self.name+".nc"), "w")
 		self.OP.source = "GWSWEX: Groundwater-Surfacewater Exchange Model"
 		self.OP.createDimension("element", self.Fort.Ini.elems)
 		self.OP.createDimension("time", None)
-
 		timeV = self.OP.createVariable("time", "i", ("time", ))
 		timeV.units = "seconds since " + self.times.str["global_start"]
 		time_unixV = self.OP.createVariable("time_unix", "i", ("time", ))
 		time_unixV.units = "unix time, seconds"
-
 		pV = self.OP.createVariable("p", "d", ("time", ), fill_value=np.nan)
 		pV.long_name = "Precipitation rate"
 		pV.units = "mm/s"
@@ -447,7 +585,6 @@ class ResNC:
 		eV.long_name = "Evapotranspiration rate"
 		eV.units = "mm/s"
 		eV[0] = 0
-
 		gwsV = self.OP.createVariable("gws", "d", ("time", "element"), fill_value=np.nan)
 		gwsV.long_name = "Groundwater Levels (Layer 1: Unsaturated) from reference sea level"
 		gwsV.units = "m"
@@ -460,11 +597,9 @@ class ResNC:
 		epvV = self.OP.createVariable("epv", "d", ("time", "element"), fill_value=np.nan)
 		epvV.long_name = "Field Capacity"
 		epvV.units = "mm"
-
 		fort_residualV = self.OP.createVariable("fort_residual", "d", ("time", ), fill_value=np.nan)
 		fort_residualV.long_name = "Residual from FortRun"
 		fort_residualV.units = "mm"
-
 		sw_flux_fortV = self.OP.createVariable("sw_dis_fort", "d", ("time", "element"), fill_value=np.nan)
 		sw_flux_fortV.long_name = "SW Storage Discharge as reported by Fort"
 		sw_flux_fortV.standard_name = "SW Discharge: Fort"
@@ -479,17 +614,21 @@ class ResNC:
 		sm_fluxV.long_name = "Soil Moisture Discharge"
 		sm_fluxV.units = "m3/dt"
 		sm_fluxV[0] = 0
-
 		timeV[0] = 0
 		time_unixV[0] = self.times.unix["global_start"]
 		gwsV[0] = self.Fort.Ini.gws
 		swsV[0] = self.Fort.Ini.sws
 		smV[0] = self.Fort.Ini.sm
 		epvV[0] = self.Fort.Ini.epv
-
 		logging.info("RES: NC file initialized")
 
 	def update(self, save=False):
+		"""
+		Parameters
+		----------
+		save : bool, optional
+			option to store local period model results as individual files. The default is False.
+		"""
 		self.save = save
 		idx = self.times.nTS["run_num"] + 1
 		self.OP["time"][idx] = self.times.rel["local_end"]
@@ -502,17 +641,18 @@ class ResNC:
 		self.OP["p"][idx] = self.Fort.Ini.p.mean()
 		self.OP["et"][idx] = self.Fort.Ini.et.mean()
 		logging.info("*RES: Wrote OP to NC file\n")
-
 		if save:
 			self.saveOPs()
 		else:
 			self.times.runtimes.append(time.time() - self.times.run["start"])
 			logging.info("*RUNTIME{}: {}\n\n".format(self.times.nTS["run_num"], self.times.runtimes[int(self.times.nTS["run_num"]-1)]))
 		self.times.nTS["ran"] = self.times.nTS["ran"] + self.times.nTS["exchange"]
-
 		self.times.nTS["run_num"] = self.times.nTS["run_num"] + 1
 
 	def saveOPs(self):
+		"""
+		saves the local period model results as individual files
+		"""
 		if not os.path.exists(self.fort_path):
 			os.mkdir(self.fort_path)
 		fort_file = os.path.join(self.fort_path, "wasenmoos_fort_"+self.times.stmp["local_start"].strftime("%Y%m%d_%H%M%S"))
@@ -524,6 +664,9 @@ class ResNC:
 		logging.info("*RUNTIME{}: {}\n\n".format(self.times.nTS["run_num"], self.times.runtimes[int(self.times.nTS["run_num"]-1)]))
 
 	def close(self):
+		"""
+		closes the netCDF file and acts as a shutdown for the model run.
+		"""
 		self.OP.close()
 		logging.info("*RES: Closed NC file\nMaking a copy of the log")
 		shutil.copy(os.path.join(self.path,"GWSWEX.log"), os.path.join(self.path,"GWSWEX_"+self.times.stmp["global_start"].\
@@ -532,6 +675,12 @@ class ResNC:
 		logging.shutdown()
 
 	def loadNC(self, nc_path=None):
+		"""
+		Parameters
+		----------
+		nc_path : str, optional
+			path to the results netCDF file. The default is None.
+		"""
 		if not nc_path:
 			nc_path = os.path.join(self.path, self.name+".nc")
 		self.OP = nc.Dataset(nc_path)
@@ -539,6 +688,12 @@ class ResNC:
 
 
 	def loadFort(self, load_time=None):
+		"""
+		Parameters
+		----------
+		load_time : str, optional
+			time/date in format YYYY-MM-DD hh:mm:ss to load the results for. The default is None.
+		"""
 		if not load_time:
 			load_time = (self.times.stmp["local_start"] - timedelta(seconds=self.times.dt["exchange"])).strftime("%Y%m%d_%H%M%S")
 		fort_path = os.path.join(self.fort_path, "wasenmoos_fort_"+load_time+".npz")
@@ -555,6 +710,22 @@ class ResNC:
 		self.Fort.Res.Qdiff = fort_file["Qdiff"]
 
 	def plot1D(self, data, fromNC=None, items=None, labels=None, title=None, to_idx=None):
+		"""
+		Parameters
+		----------
+		data : array or str if fromNC is true
+			the data array(s) or key to plot. if data from array(s), must be inside a list
+		fromNC : bool, optional
+			option to indicate data is key foe netCDF file. The default is None.
+		items : list, str, optional
+			option to specift the type of data. The default is None.
+		labels : list, str, optional
+			list of labels for the plot. The default is None.
+		title : str, optional
+			title for the plot. The default is None.
+		to_idx : int, optional
+			option to limit the plot of the data to this index. The default is None.
+		"""
 		pal = {"gw":"#E74C3C", "sm":"#2ECC71", "fc":"#5EFCA1", "sv":"#E7AC3C", "sw":"#2980B9", "p":"#1A3BFF", "et":"#FF6600"\
 		, "red":"red", "green":"green", "grey":"grey", "cyan":"c", "pink":"m", "default":"black"}
 		if not to_idx and type(data) != str:
