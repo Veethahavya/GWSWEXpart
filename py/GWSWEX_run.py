@@ -36,7 +36,7 @@ RES.build()
 Fort.build()
 Fort.Run() # Hint: the success state is stored in Fort.success
 Fort.load() # Hint: Results are stored in Fort.Res
-# Fort.plot(0)
+# Fort.plot(1)
 
 #%%
 RES.update(save=True)
@@ -48,3 +48,13 @@ for ts in tqdm(range(times.nTS["max"])):
 	Fort.update(run=True) # updates, runs, and loads
 	RES.update(save=True)
 RES.close()
+
+#%% Visualization hints
+# load the results netcdf file after the model run
+nc = RES.loadNC()
+
+# plot the desired data
+RES.plot1D("gws", fromNC="mean") # mean of groundwater levels along the timesteps
+
+# view the stored variables in the file to plot more. use:
+nc.variables.keys()
