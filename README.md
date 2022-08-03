@@ -1,4 +1,4 @@
-# GWSWEX
+# GWSWEX [obselete readme; to be updated from private repo]
 A 0-dimensional model to facilitate exchange between groundwater and surface-water models. This is a part of the module forked and trimmed from [here](https://github.com/Veethahavya/GWSWEX).
 An visual illustration of the numerical scheme of this model is as follows:
 ![0D Cell](https://user-images.githubusercontent.com/14050804/109405064-c85e8a80-796c-11eb-953f-9ba27bfe245e.png)
