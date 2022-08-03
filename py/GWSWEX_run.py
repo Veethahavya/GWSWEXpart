@@ -1,3 +1,4 @@
+# OBSELETE - to be updated from private repo
 import GWSWEX
 import numpy as np
 from tqdm import tqdm
